@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './AuthContext';
 import Auth from './Auth'; // Assuming Auth component is extracted to Auth.js
 import LoggedIn from './LoggedIn';
+import AdminPage from './AdminPage';
+
 
 function App() {
   const { currentUser } = useAuth();
@@ -12,6 +14,7 @@ function App() {
       <Routes>
         <Route path="/" element={currentUser ? <Navigate to="/loggedin" /> : <Auth />} />
         <Route path="/loggedin" element={currentUser ? <LoggedIn /> : <Navigate to="/" />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </Router>
   );

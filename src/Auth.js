@@ -4,15 +4,14 @@ import './App.css';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase/firebaseConfig';
-import { database, ref, set, push } from './firebase/firebaseConfig';
-import { useAuth } from './AuthContext';
+import { database, ref, set, get } from './firebase/firebaseConfig';
 
 function Auth() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [arcadeId, setArcadeId] = useState('');
-  const [playerSeat, setPlayerSeat] = useState(''); // Default to 'blue'
+  const [playerSeat, setPlayerSeat] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,15 +22,23 @@ function Auth() {
     const playerSeatParam = queryParams.get('playerSeat');
     if (arcadeIdParam) setArcadeId(arcadeIdParam);
     if (playerSeatParam) setPlayerSeat(playerSeatParam);
+    if (location.state && location.state.error) {
+      setError([location.state.error]);
+    }
   }, [location]);
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-      handleLogin(auth.currentUser.uid, arcadeId, playerSeat); // Log login event for Google sign-in
-      navigate('/loggedin');
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const userId = result.user.uid;
+      checkSeatAvailability(userId, arcadeId, playerSeat, () => {
+        localStorage.setItem('arcadeId', arcadeId);
+        localStorage.setItem('playerSeat', playerSeat);
+        navigate('/loggedin');
+      });
     } catch (error) {
       console.error(error);
+      setError([error.message]);
     }
   };
 
@@ -47,6 +54,7 @@ function Auth() {
       setError(['Password should be at least 6 characters long']);
       return;
     }
+
     try {
       let userId;
       if (isRegister) {
@@ -56,9 +64,30 @@ function Auth() {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         userId = userCredential.user.uid;
       }
-      handleLogin(userId, arcadeId, playerSeat); // Log login event for email/password sign-in
-      console.log('User logged in:', userId);
-      navigate('/loggedin');
+      checkSeatAvailability(userId, arcadeId, playerSeat, () => {
+        localStorage.setItem('arcadeId', arcadeId);
+        localStorage.setItem('playerSeat', playerSeat);
+        navigate('/loggedin');
+      });
+    } catch (error) {
+      setError([error.message]);
+      console.error(error);
+    }
+  };
+
+  const checkSeatAvailability = async (userId, arcadeId, playerSeat, onSuccess) => {
+    try {
+      const seatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
+      const seatSnapshot = await get(seatRef);
+
+      if (seatSnapshot.exists() && seatSnapshot.val().userId !== userId) {
+        setError(['Selected seat is already occupied. Please choose another seat.']);
+        console.log('Selected seat is already occupied. Please choose another seat.');
+        navigate('/', { state: { error: 'Selected seat is already occupied. Please choose another seat.' } });
+      } else {
+        handleLogin(userId, arcadeId, playerSeat);
+        onSuccess();
+      }
     } catch (error) {
       setError([error.message]);
       console.error(error);
@@ -67,13 +96,16 @@ function Auth() {
 
   const handleLogin = (userId, arcadeId, playerSeat) => {
     console.log('Login event recorded for user:', userId);
-    // Generate a unique key for the new login event
-    const uniqueKey = `${Date.now()}_${userId}`;
+    const seatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
 
-    // Create a reference to the new login event path
+    set(seatRef, {
+      userId: userId,
+      timestamp: Date.now(),
+    });
+
+    const uniqueKey = `${Date.now()}_${userId}`;
     const newLoginRef = ref(database, `loginEvents/${uniqueKey}`);
 
-    // Write a record to the new key in the Firebase Realtime Database indicating the login event
     set(newLoginRef, {
       userId: userId,
       arcadeId: arcadeId,
