@@ -1,10 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
-import Auth from './Auth'; // Assuming Auth component is extracted to Auth.js
+import Auth from './Auth';
 import LoggedIn from './LoggedIn';
 import AdminPage from './AdminPage';
-
 
 function App() {
   const { currentUser } = useAuth();

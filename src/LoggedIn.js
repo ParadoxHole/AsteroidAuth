@@ -1,31 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { database, ref, get, set } from './firebase/firebaseConfig';
-import { auth } from './firebase/firebaseConfig';
-import './App.css'; // Import your CSS file
-import { useLocation } from 'react-router-dom';
-
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ref, get, set } from 'firebase/database';
+import { auth, database } from './firebase/firebaseConfig';
+import './App.css';
 
 function LoggedIn() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [arcadeId, setArcadeId] = useState('');
   const [playerSeat, setPlayerSeat] = useState('');
   const [newSeat, setNewSeat] = useState('');
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [arcadeName, setArcadeName] = useState('');
-  const location = useLocation();
+  const [arcades, setArcades] = useState([]);
 
+  const fetchArcadeName = async (arcadeId) => {
+    try {
+      const arcadeRef = ref(database, `Arcade/${arcadeId}`);
+      const arcadeSnapshot = await get(arcadeRef);
+      if (arcadeSnapshot.exists()) {
+        setArcadeName(arcadeSnapshot.val().name);
+      } else {
+        setError('Arcade not found');
+      }
+    } catch (error) {
+      setError(error.message);
+      console.error(error);
+    }
+  };
   useEffect(() => {
-    const fetchArcadeName = async (arcadeId) => {
+
+    const fetchArcades = async () => {
       try {
-        console.log('arcadeId', arcadeId);
-        const arcadeRef = ref(database, `Arcade/${arcadeId}`);
-        const arcadeSnapshot = await get(arcadeRef);
-        if (arcadeSnapshot.exists()) {
-          setArcadeName(arcadeSnapshot.val().name);
+        const arcadesRef = ref(database, 'Arcade');
+        const arcadesSnapshot = await get(arcadesRef);
+        if (arcadesSnapshot.exists()) {
+          setArcades(Object.entries(arcadesSnapshot.val()));
         } else {
-          setError('Arcade not found');
+          setArcades([]);
         }
       } catch (error) {
         setError(error.message);
@@ -33,23 +46,35 @@ function LoggedIn() {
       }
     };
 
+    fetchArcades();
+
     const storedArcadeId = localStorage.getItem('arcadeId');
     const storedPlayerSeat = localStorage.getItem('playerSeat');
-    if (storedArcadeId) {
-      setArcadeId(storedArcadeId);
-      fetchArcadeName(storedArcadeId);
-    }    
-    if (storedPlayerSeat) setPlayerSeat(storedPlayerSeat);
+
+    // Check for local storage or navigation state
+    const arcadeIdFromState = location.state?.arcadeId;
+    const playerSeatFromState = location.state?.playerSeat;
+
+    if (storedArcadeId || arcadeIdFromState) {
+      const finalArcadeId = storedArcadeId || arcadeIdFromState;
+      setArcadeId(finalArcadeId);
+      fetchArcadeName(finalArcadeId);
+    }
+
+    if (storedPlayerSeat || playerSeatFromState) {
+      setPlayerSeat(storedPlayerSeat || playerSeatFromState);
+    }
 
     const currentUser = auth.currentUser;
     if (currentUser) {
       setUserEmail(currentUser.email);
     }
-    if (location.state && location.state.error) {
+
+    if (location.state?.error) {
       setError(location.state.error);
       console.error(location.state.error);
     }
-  }, []);
+  }, [location, error]);
 
   const handleNewSeatSelection = async (e) => {
     e.preventDefault();
@@ -58,46 +83,45 @@ function LoggedIn() {
       setError('Please choose a new seat color.');
       return;
     }
-  
+
     try {
       const seatRef = ref(database, `seats/${arcadeId}/${newSeat}`);
       const seatSnapshot = await get(seatRef);
-  
-      if (seatSnapshot.exists()) {
-        const currentUserId = seatSnapshot.val().userId;
-  
-        if (currentUserId && currentUserId !== userId) {
-          setError('Selected seat is already occupied. Please choose another seat.');
-          navigate('/', { state: { error: 'Selected seat is already occupied. Please choose another seat.' } });
-        } else {
-          // Free the old seat
-          const oldSeatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
-          await set(oldSeatRef, { userId: '', timestamp: Date.now() });
-  
-          // Occupy the new seat
-          await set(seatRef, { userId: userId, timestamp: Date.now() });
-  
-          // Update the login event
-          const uniqueKey = `${Date.now()}_${userId}`;
-          const newLoginRef = ref(database, `loginEvents/${uniqueKey}`);
-          await set(newLoginRef, {
-            userId: userId,
-            arcadeId: arcadeId,
-            playerSeat: newSeat,
-            timestamp: Date.now(),
-          });
-  
-          // Update state
-          setPlayerSeat(newSeat);
-          setError('');
-        }
+
+      if (seatSnapshot.exists() && seatSnapshot.val().userId !== userId) {
+        setError('Selected seat is already occupied. Please choose another seat.');
       } else {
-        setError('Selected seat does not exist. Please choose another seat.');
+        // Free the old seat
+        const oldSeatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
+        await set(oldSeatRef, { userId: '', timestamp: Date.now() });
+
+        // Occupy the new seat
+        await set(seatRef, { userId: userId, timestamp: Date.now() });
+
+        // Update the login event
+        const uniqueKey = `${Date.now()}_${userId}`;
+        const newLoginRef = ref(database, `loginEvents/${uniqueKey}`);
+        await set(newLoginRef, {
+          userId: userId,
+          arcadeId: arcadeId,
+          playerSeat: newSeat,
+          timestamp: Date.now(),
+        });
+
+        // Update state
+        setPlayerSeat(newSeat);
+        setError('');
       }
     } catch (error) {
       setError(error.message);
       console.error(error);
     }
+  };
+
+  const handleArcadeSelection = (e) => {
+    const selectedArcadeId = e.target.value;
+    setArcadeId(selectedArcadeId);
+    fetchArcadeName(selectedArcadeId);
   };
 
   const handleLogout = () => {
@@ -122,8 +146,17 @@ function LoggedIn() {
             <div className="select-container">
               {error && <div className="error-message">{error}</div>}
               <label>
-                Choose a new seat color :
-                <select value={playerSeat} onChange={(e) => setNewSeat(e.target.value)}>
+                Select Arcade:
+                <select value={arcadeId} onChange={handleArcadeSelection}>
+                  <option value="">Select an arcade</option>
+                  {arcades.map(([id, arcade]) => (
+                    <option key={id} value={id}>{arcade.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Choose a new seat color:
+                <select value={newSeat} onChange={(e) => setNewSeat(e.target.value)}>
                   <option value="">Select a seat</option>
                   <option value="red">Red</option>
                   <option value="blue">Blue</option>

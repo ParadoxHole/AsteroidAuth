@@ -22,8 +22,9 @@ function Auth() {
     const playerSeatParam = queryParams.get('playerSeat');
     if (arcadeIdParam) setArcadeId(arcadeIdParam);
     if (playerSeatParam) setPlayerSeat(playerSeatParam);
-    if (location.state && location.state.error) {
-      setError([location.state.error]);
+    if (error) {
+      setError(error);
+      console.log('HAZAZEAEAZE')
     }
   }, [location]);
 
@@ -34,6 +35,8 @@ function Auth() {
       checkSeatAvailability(userId, arcadeId, playerSeat, () => {
         localStorage.setItem('arcadeId', arcadeId);
         localStorage.setItem('playerSeat', playerSeat);
+        localStorage.setItem('Selected seat is already occupied. Please choose another seat.', error);
+
         navigate('/loggedin');
       });
     } catch (error) {
@@ -67,6 +70,7 @@ function Auth() {
       checkSeatAvailability(userId, arcadeId, playerSeat, () => {
         localStorage.setItem('arcadeId', arcadeId);
         localStorage.setItem('playerSeat', playerSeat);
+        localStorage.setItem('Selected seat is already occupied. Please choose another seat.', error);
         navigate('/loggedin');
       });
     } catch (error) {
@@ -81,7 +85,7 @@ function Auth() {
       const seatSnapshot = await get(seatRef);
 
       if (seatSnapshot.exists() && seatSnapshot.val().userId !== userId) {
-        setError(['Selected seat is already occupied. Please choose another seat.']);
+        localStorage.setItem('Selected seat is already occupied. Please choose another seat.', error);
         console.log('Selected seat is already occupied. Please choose another seat.');
         navigate('/', { state: { error: 'Selected seat is already occupied. Please choose another seat.' } });
       } else {
