@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, get, set, remove, push } from 'firebase/database';
+import { ref, get, set, remove, update } from 'firebase/database';
 import { database } from './firebase/firebaseConfig';
 import './App.css'; // Import your CSS file
 
@@ -44,7 +44,7 @@ function AdminPage() {
         }
 
         const arcadeRef = ref(database, `Arcade/${newArcadeId}`);
-        await set(arcadeRef, { name: arcadeName});
+        await set(arcadeRef, { name: arcadeName });
         await set(counterRef, newArcadeId); // Update the counter in the database
       }
       setArcadeName('');
@@ -72,6 +72,34 @@ function AdminPage() {
     setArcadeName(name);
   };
 
+  const clearAllUsersAndSeats = async () => {
+    try {
+      const arcadesRef = ref(database, 'seats');
+      const snapshot = await get(arcadesRef);
+
+      if (snapshot.exists()) {
+        const updates = {};
+        snapshot.forEach((arcadeSnapshot) => {
+          const arcadeId = arcadeSnapshot.key;
+          arcadeSnapshot.forEach((seatSnapshot) => {
+            const seatId = seatSnapshot.key;
+            updates[`seats/${arcadeId}/${seatId}`] = {
+              userId: '',
+              timestamp: '',
+            };
+          });
+        });
+
+        await update(ref(database), updates);
+        fetchArcades();
+        alert('All users and seats have been cleared.');
+      }
+    } catch (error) {
+      setError(error.message);
+      console.error(error);
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -87,10 +115,13 @@ function AdminPage() {
           />
           <button type="submit">{selectedArcadeId ? 'Update Arcade' : 'Create Arcade'}</button>
         </form>
+        <button onClick={clearAllUsersAndSeats} className="clear-button">
+          Clear All Users and Seats
+        </button>
         <div className="arcade-list">
           {arcades.map(([id, arcade]) => (
             <div key={id} className="arcade-item">
-              <span>{arcade.name} (ID: {id})</span> 
+              <span>{arcade.name} (ID: {id})</span>
               <button onClick={() => handleEditArcade(id, arcade.name)}>Edit</button>
               <button onClick={() => handleDeleteArcade(id)}>Delete</button>
             </div>

@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import logo from './logo.svg';
 import './App.css';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase/firebaseConfig';
 import { database, ref, set, get } from './firebase/firebaseConfig';
+
+import logo from './logos/logo.png'
+import logoRed from './logos/logo-red.png';
+import logoBlue from './logos/logo-blue.png';
+import logoGreen from './logos/logo-green.png';
+import logoYellow from './logos/logo-yellow.png';
 
 function Auth() {
   const [isRegister, setIsRegister] = useState(false);
@@ -22,9 +27,8 @@ function Auth() {
     const playerSeatParam = queryParams.get('playerSeat');
     if (arcadeIdParam) setArcadeId(arcadeIdParam);
     if (playerSeatParam) setPlayerSeat(playerSeatParam);
-    if (error) {
-      setError(error);
-      console.log('HAZAZEAEAZE')
+    if (location.state?.error) {
+      setError(location.state.error);
     }
   }, [location]);
 
@@ -49,7 +53,7 @@ function Auth() {
     e.preventDefault();
 
     if (!arcadeId || !playerSeat) {
-      setError(['Arcade ID and Player Seat are required.', 'Something went wrong!', 'Scan the QR code again!']);
+      setError(['Arcade ID and Player Seat are required.', 'Scan the QR code again!']);
       return;
     }
 
@@ -84,10 +88,11 @@ function Auth() {
       const seatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
       const seatSnapshot = await get(seatRef);
 
-      if (seatSnapshot.exists() && seatSnapshot.val().userId !== userId) {
-        localStorage.setItem('Selected seat is already occupied. Please choose another seat.', error);
-        console.log('Selected seat is already occupied. Please choose another seat.');
-        navigate('/', { state: { error: 'Selected seat is already occupied. Please choose another seat.' } });
+      if (seatSnapshot.exists() && seatSnapshot.val().userId !== '') {
+        if (seatSnapshot.val().userId !== userId)
+          localStorage.setItem('error', 'Selected seat is already occupied. Please choose another seat.');
+          console.log('Selected seat is already occupied. Please choose another seat.');
+          navigate('/', { state: { error: 'Selected seat is already occupied. Please choose another seat.' } });
       } else {
         handleLogin(userId, arcadeId, playerSeat);
         onSuccess();
@@ -118,10 +123,25 @@ function Auth() {
     });
   };
 
+  const getLogo = (seat) => {
+    switch (seat) {
+      case 'red':
+        return logoRed;
+      case 'blue':
+        return logoBlue;
+      case 'green':
+        return logoGreen;
+      case 'yellow':
+        return logoYellow;
+      default:
+        return logo;
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
+        <img src={getLogo(playerSeat)} className="App-logo" alt="logo" />
         <h1>{isRegister ? 'Register' : 'Login'}</h1>
         {error.length > 0 && (
           <div className="error-message">
@@ -130,6 +150,10 @@ function Auth() {
             ))}
           </div>
         )}
+        <button onClick={handleGoogleSignIn} className="google-signin">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png" alt="Google Logo" className="google-logo" />
+          Sign in with Google
+        </button>
         <form onSubmit={handleFormSubmit} className="auth-form">
           <input
             type="email"
@@ -147,9 +171,6 @@ function Auth() {
           />
           <button type="submit">{isRegister ? 'Register' : 'Login'}</button>
         </form>
-        <button onClick={handleGoogleSignIn} className="google-signin">
-          Sign in with Google
-        </button>
         <p onClick={() => setIsRegister(!isRegister)} className="toggle-link">
           {isRegister ? 'Already have an account? Login' : "Don't have an account? Register"}
         </p>

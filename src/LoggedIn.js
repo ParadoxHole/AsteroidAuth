@@ -87,9 +87,9 @@ function LoggedIn() {
     try {
       const seatRef = ref(database, `seats/${arcadeId}/${newSeat}`);
       const seatSnapshot = await get(seatRef);
-
-      if (seatSnapshot.exists() && seatSnapshot.val().userId !== userId) {
-        setError('Selected seat is already occupied. Please choose another seat.');
+      if (seatSnapshot.exists() && seatSnapshot.val().userId !== '') {
+        if (seatSnapshot.val().userId !== userId)
+          setError('Selected seat is already occupied. Please choose another seat.');
       } else {
         // Free the old seat
         const oldSeatRef = ref(database, `seats/${arcadeId}/${playerSeat}`);
